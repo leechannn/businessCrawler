@@ -1,14 +1,13 @@
 import os
-
-import selenium
 from selenium import webdriver
 from bs4 import BeautifulSoup
 import time
 
 
 class Post:
-    def __init__(self, page_type=0, page_start=1, url='', next_page='', post_xpath='', post_title_ends='', more_page_xpath='', more_page_xpath_offset='', post_limit=10, page_sub_limit=10, page_offset=2, page_offset_start=1):
+    def __init__(self, post_start=1, page_type=0, page_start=1, url='', next_page='', post_xpath='', post_title_ends='', more_page_xpath='', more_page_xpath_offset='', post_limit=10, page_sub_limit=10, page_offset=2, page_offset_start=1, title='', post_mul_for_url=1):
         self.page_type = page_type
+        self.post_start = post_start
         self.page_start = page_start
         self.url = url
         self.next_page = next_page
@@ -23,9 +22,19 @@ class Post:
         self.page_sub_limit = page_sub_limit
         self.page_offset = page_offset
         self.page_offset_start = page_offset_start
+        self.title = title
+        self.post_mul_for_url = post_mul_for_url
 
     def get_page_url(self, num: int) -> str:
-        return self.url + self.next_page + str(num)
+        try:
+            url1 = self.url.split('/')[2]
+            url2 = self.next_page.split('/')[2]
+            if url1 != url2:
+                return ((self.url + self.next_page) % (num*self.post_mul_for_url))
+            else:
+                return (self.next_page % (num*self.post_mul_for_url))
+        except IndexError as e:
+            return ((self.url + self.next_page) % (num*self.post_mul_for_url))
 
     def get_page_xpath(self, num: int) -> str:
         result = self.next_page % (num)
@@ -41,20 +50,18 @@ class Post:
 
 
 URLS = []
+'''
 URLS.append(Post(page_type=0,
                  url='https://www.bizinfo.go.kr/see/seea/selectSEEA100.do',
-                 next_page='?pageIndex=',
+                 next_page='?pageIndex=%d',
                  post_xpath="""//*[@id="content"]/div[3]/div[2]/table/tbody/tr[%d]/td[2]/a""",
                  post_title_ends='/span',
-                 more_page_xpath='//*[@id="paging_div"]/a[12]',
                  post_limit=20))
-'''
-
-URLS.append(Post(page_type=1,
+URLS.append(Post(page_type=1,  #이거 안됨
                  url='https://www.k-startup.go.kr/common/announcement/announcementList.do?mid=30004&bid=701&searchAppAt=A',
                  next_page="""//*[@id="btn_listAll"]""",
                  post_xpath="""/html/body/div[1]/div[6]/form/div[2]/div[3]/ul[1]/li[%d]/h4/a""",
-                 more_page_xpath='@@@@@here@@@@@@@@'
+                 more_page_xpath='@@@@@here@@@@@@@@',
                  post_limit=20))
 URLS.append(Post(page_type=0,
                  url='https://www.sdm.go.kr/news/notice/notice.do',
@@ -63,8 +70,34 @@ URLS.append(Post(page_type=0,
                  more_page_xpath='//*[@id="frm"]/div[2]/a[11]',
                  more_page_xpath_offset='//*[@id="frm"]/div[2]/a[13]',
                  page_offset_start=11))
+URLS.append(Post(page_type=2,
+                 url='https://kbinnovationhub.com/apply/',
+                 title='KB이노베이션 허브'))
+URLS.append(Post(page_type=0,
+                 post_start=2,
+                 url='https://www.bi.go.kr/board/list.do?boardID=RECRUIT&pager.offset=0&frefaceCode=ANNOUNCE',
+                 next_page='https://www.bi.go.kr/board/list.do?boardID=RECRUIT&pager.offset=%d&frefaceCode=ANNOUNCE',
+                 post_xpath='//*[@id="boardFormVO"]/div[2]/div[2]/div/table/tbody/tr[%d]/td[4]/a',
+                 post_limit=16,
+                 post_mul_for_url=15))
+URLS.append(Post(page_type=0,
+                 url='https://sbsc.seoul.go.kr/fe/support/seoul/NR_list.do?bbsCd=1',
+                 next_page='&bbsSeq=&currentPage=%d&searchVals=&bbsGrpCds_all=on&orgCd=',
+                 post_xpath='//*[@id="container"]/div/div[2]/table/tbody/tr[%d]/td[2]/a'))
+URLS.append(Post(page_type=0,
+                 url='https://youthhub.kr/hub/category/notice',
+                 next_page='/page/%d',
+                 post_xpath='//*[@id="main-content"]/div/div[4]/div/div/div[1]/div/div[%d]/div/div[2]/h2/a',
+                 post_limit=12))
 '''
-PAGE_LIMIT = 30
+URLS.append(Post(page_type=0,  # 각 페이지 첫번째 게시물 처리 필요
+                 url='https://agro.seoul.go.kr/archives/category/institution_c1/institution_news_c1/institution_news_gosi-n2',
+                 next_page='/page/%d',
+                 post_xpath='//*[@id="child_policyUL"]/li[%d]/a',
+                 post_limit=9))
+
+
+PAGE_LIMIT = 20
 WAIT_SEC = 1
 
 
@@ -73,7 +106,6 @@ def get_page_num(num: int) -> int:
     if not result:
         result = 10
     return result
-
 
 def string_escaping_for_file(string: str) -> str:
     result = string.strip()
@@ -105,7 +137,7 @@ def type_page_num(URL: Post):
         else:
             driver.get(URL.get_page_url(page_num))
         time.sleep(WAIT_SEC)
-        for post_num in range(1, URL.post_limit + 1):
+        for post_num in range(URL.post_start, URL.post_limit + 1):
             title = driver.find_element_by_xpath(URL.get_post_title(URL.post_title_ends, post_num)).text
             title = string_escaping_for_file(title)
             if title.find('창업') != -1:  # 키워드 기반 필터링
@@ -169,6 +201,19 @@ def type_more_post(URL: Post):
             html = f.read()
         soup = BeautifulSoup(html, 'html.parser')
 '''
+
+
+def type_one_page(URL: Post):
+    global WAIT_SEC
+    global driver
+
+    driver.get(URL.url)
+    time.sleep(WAIT_SEC)
+    if not os.path.isfile("./crawled/" + URL.title + ".txt"):
+        with open("./crawled/" + URL.title + ".txt", "w", encoding='UTF8') as f:
+            f.write(driver.page_source)
+
+
 if __name__ == '__main__':
     driver = webdriver.Chrome('./driver/chromedriver')
 
@@ -177,4 +222,6 @@ if __name__ == '__main__':
             type_page_num(URL)
         elif URL.page_type == 1:
             type_more_post(URL)
+        elif URL.page_type == 2:
+            type_one_page(URL)
 
