@@ -37,14 +37,6 @@ class Post:
         except IndexError as e:
             return ((self.url + self.next_page) % (num*self.post_mul_for_url))
 
-    def get_page_xpath(self, num: int) -> str:
-        result = self.next_page % (num)
-        return result
-
-    def get_special_xpath(self, num: int) -> str:
-        result = self.special[0] % (num)
-        return result
-
 
 URLS = []
 '''
@@ -80,7 +72,6 @@ URLS.append(Post(page_type=0,
                  url='https://sbsc.seoul.go.kr/fe/support/seoul/NR_list.do?bbsCd=1',
                  next_page='&bbsSeq=&currentPage=%d&searchVals=&bbsGrpCds_all=on&orgCd=',
                  post_xpath='//*[@id="container"]/div/div[2]/table/tbody/tr[%d]/td[2]/a'))
-'''
 URLS.append(Post(page_type=0,
                  url='https://youthhub.kr/hub/category/notice',
                  next_page='/page/%d',
@@ -93,7 +84,6 @@ URLS.append(Post(page_type=0,
                  post_xpath='//*[@id="child_policyUL"]/li[%d]/a',
                  post_limit=9,
                  special=['/html/body/div[3]/div[3]/div[2]/div[%d]/div[2]/span[1]/a', '3', '3']))
-'''
 
 
 PAGE_LIMIT = 20
@@ -126,9 +116,9 @@ def crawl_post_page(post_start, post_limit, post_xpath, keyword):
     for post_num in range(post_start, post_limit + 1):
         title = driver.find_element_by_xpath(post_xpath % (post_num)).text
         title = string_escaping_for_file(title)
-        print(title)
         if title.find(keyword) != -1:  # 키워드 기반 필터링
             # 키워드가 존재하면
+            print(title)
             driver.find_element_by_xpath(post_xpath % (post_num)).click()
             time.sleep(WAIT_SEC)
             if not os.path.isfile("./crawled/" + title + ".txt"):
@@ -149,8 +139,8 @@ def crawl_post_more(post_xpath, keyword):
     for post_num in range(1, post_limit + 1):
         title = driver.find_element_by_xpath(post_xpath % (post_num)).text
         title = string_escaping_for_file(title)
-        print(title)
         if title.find(keyword) != -1:  # 키워드 기반 필터링
+            print(title)
             # 키워드가 존재하면
             driver.find_element_by_xpath(post_xpath % (post_num)).click()
             time.sleep(WAIT_SEC)
@@ -171,9 +161,9 @@ def type_page_num(URL: Post):
         # print("page_num : " + str(page_num) + ", next_page_num : " + str(next_page_num))
         if "//*" in URL.next_page:
             if URL.page_offset_start <= page_num:
-                driver.find_element_by_xpath(URL.get_page_xpath(next_page_num+URL.page_offset)).click()
+                driver.find_element_by_xpath(URL.next_page % (next_page_num+URL.page_offset)).click()
             else:
-                driver.find_element_by_xpath(URL.get_page_xpath(next_page_num)).click()
+                driver.find_element_by_xpath(URL.next_page % (next_page_num)).click()
         else:
             driver.get(URL.get_page_url(page_num))
         time.sleep(WAIT_SEC)
